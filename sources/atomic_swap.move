@@ -9,6 +9,7 @@ module atomic_swap::atomic_swap {
 
     struct Escrow<phantom X, phantom Y> has key {
         coin_x: coin::Coin<X>,
+        amt_x: u64,
         coin_y: coin::Coin<Y>,
         req_y: u64
     }
@@ -23,6 +24,7 @@ module atomic_swap::atomic_swap {
             init_user,
             Escrow<X, Y> {
                 coin_x: coin::zero<X>(),
+                amt_x: 0,
                 coin_y: coin::zero<Y>(),
                 req_y: 0
             }
@@ -40,12 +42,15 @@ module atomic_swap::atomic_swap {
         let escrow_addr = borrow_global<EscrowEvent>(user_addr).escrow_addr;
         assert!(exists<Escrow<X, Y>>(escrow_addr), 0);
 
+        let dep_x = copy amt_x;
         coin::transfer<X>(init_user, escrow_addr, amt_x);
         assert!(coin::balance<X>(escrow_addr) == amt_x, 0);
 
-        let req_y = &mut borrow_global_mut<Escrow<X, Y>>(escrow_addr).req_y;
-
+        // Update `amt_x`
+        let amt_x = &mut borrow_global_mut<Escrow<X, Y>>(escrow_addr).amt_x;
+        *amt_x = *amt_x + dep_x;
         // Update `req_y` to how much of coin Y `user` wants in return for his deposit
+        let req_y = &mut borrow_global_mut<Escrow<X, Y>>(escrow_addr).req_y;
         *req_y = *req_y + amt_y;
     }
 
@@ -61,9 +66,15 @@ module atomic_swap::atomic_swap {
         let req_y = borrow_global<Escrow<X, Y>>(escrow_addr).req_y;
         if (amt_y == req_y) {
             coin::transfer<Y>(comp_user, escrow_addr, amt_y);
+        };
 
-            coin::transfer<X>() 
-        }
+        let escrow = borrow_global_mut<Escrow<X, Y>>(escrow_addr);
+
+        let coins_x = coin::extract_all<X>(&mut escrow.coin_x);
+        coin::deposit<X>(comp_user_addr, coins_x);
+
+        let coins_y = coin::extract_all<Y>(&mut escrow.coin_y);
+        coin::deposit<Y>(init_user_addr, coins_y);
     }
 
 }
