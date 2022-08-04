@@ -1,11 +1,12 @@
-/// User 0 deposits x amount of coin X into an escrow, with the expectation that if someone puts y amount of coin Y,
-/// both users will recieve the opposite amount
+/// User 0 deposits x amount of coin X into an escrow, with the expectation that if someone deposits y amount of coin Y,
+/// both users will recieve the opposite amount of each coin
 
 module atomic_swap::atomic_swap {
 
-    use aptos_framework::coin;
     use std::signer;
+    use aptos_framework::coin;
     use aptos_framework::account;
+    use aptos_framework::managed_coin;
 
     struct Escrow<phantom X, phantom Y> has key {
         coin_x: coin::Coin<X>,
@@ -17,6 +18,8 @@ module atomic_swap::atomic_swap {
     struct EscrowEvent has key {
         escrow_addr: address
     }
+
+    const ECOIN_NOT_INIT: u64 = 0;
 
     /// Initialize escrow
     public entry fun init_escrow<X, Y>(init_user: &signer, seed: vector<u8>) {
@@ -38,13 +41,18 @@ module atomic_swap::atomic_swap {
     /// X and specify the amount of coin Y they want in return
     public entry fun init_swap<X, Y>(init_user: &signer, amt_x: u64, amt_y: u64)
     acquires Escrow, EscrowEvent {
-        let user_addr = signer::address_of(init_user);
-        let escrow_addr = borrow_global<EscrowEvent>(user_addr).escrow_addr;
+        let init_user_addr = signer::address_of(init_user);
+        let escrow_addr = borrow_global<EscrowEvent>(init_user_addr).escrow_addr;
         assert!(exists<Escrow<X, Y>>(escrow_addr), 0);
 
         let dep_x = copy amt_x;
         coin::transfer<X>(init_user, escrow_addr, amt_x);
         assert!(coin::balance<X>(escrow_addr) == amt_x, 0);
+
+        // Initialize coin Y in `init_user`'s account if not already done so
+        if (!coin::is_account_registered<Y>(init_user_addr)) {
+            managed_coin::register<Y>(init_user);
+        };
 
         // Update `amt_x`
         let amt_x = &mut borrow_global_mut<Escrow<X, Y>>(escrow_addr).amt_x;
@@ -68,6 +76,11 @@ module atomic_swap::atomic_swap {
             coin::transfer<Y>(comp_user, escrow_addr, amt_y);
         };
 
+        // Initialize coin X in `comp_user`'s account if not already done so
+        if (!coin::is_account_registered<X>(comp_user_addr)) {
+            managed_coin::register<X>(comp_user);
+        };
+
         let escrow = borrow_global_mut<Escrow<X, Y>>(escrow_addr);
 
         let coins_x = coin::extract_all<X>(&mut escrow.coin_x);
@@ -77,4 +90,60 @@ module atomic_swap::atomic_swap {
         coin::deposit<Y>(init_user_addr, coins_y);
     }
 
+    // =========== Tests =========== //
+
+    #[test_only]
+    struct CoinX {}
+//    #[test_only]
+//    struct CoinY {}
+
+    #[test(init_user = @0x1)]
+    public fun test_end_to_end(init_user: signer) {
+        //let _init_user_addr = signer::address_of(&init_user);
+
+        managed_coin::initialize<CoinX>(
+            &init_user,
+            b"CoinX",
+            b"TST",
+            4,
+            true
+        );
+        assert!(coin::is_coin_initialized<CoinX>(), ECOIN_NOT_INIT);
+        managed_coin::register<CoinX>(&init_user);
+    }
 }
+
+
+//#[test(init_user = @0x1, comp_user = @0x2)]
+//public fun test_end_to_end(init_user: signer, comp_user: signer) {
+//let _init_user_addr = signer::address_of(&init_user);
+//let _comp_user_addr = signer::address_of(&comp_user);
+//
+//managed_coin::initialize<CoinX>(
+//&init_user,
+//b"CoinX",
+//b"X",
+//4,
+//true
+//);
+//assert!(coin::is_coin_initialized<CoinX>(), 0);
+//managed_coin::register<CoinX>(&init_user);
+//managed_coin::mint<CoinX>(&init_user, init_user_addr, 100);
+//
+//managed_coin::initialize<CoinY>(
+//&comp_user,
+//b"CoinY",
+//b"Y",
+//1,
+//true
+//);
+//managed_coin::register<CoinY>(&comp_user);
+//managed_coin::mint<CoinY>(&comp_user, comp_user_addr, 100);
+//
+//atomic_swap::init_escrow<CoinX, CoinY>(&init_user, b"seed");
+//
+//atomic_swap::init_swap<CoinX, CoinY>(&init_user, 20, 50);
+//
+//atomic_swap::complete_swap<CoinX, CoinY>(&comp_user, init_user_addr, 50);
+//assert!(coin::balance<CoinY>(init_user_addr) == 50, 1);
+//}
