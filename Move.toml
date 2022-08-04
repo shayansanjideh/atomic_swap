@@ -1,0 +1,10 @@
+[package]
+name = "atomic_swap"
+version = "0.0.0"
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", subdir = "aptos-move/framework/aptos-framework/", rev = "3c2913208d8392cfd61b56955f5702abbc076d8c" }
+
+[addresses]
+atomic_swap = "0x1"
+
