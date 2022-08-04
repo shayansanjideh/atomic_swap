@@ -62,7 +62,7 @@ module atomic_swap::atomic_swap {
         if (amt_y == req_y) {
             coin::transfer<Y>(comp_user, escrow_addr, amt_y);
 
-            coin::transfer<X>()
+            coin::transfer<X>() 
         }
     }
 
