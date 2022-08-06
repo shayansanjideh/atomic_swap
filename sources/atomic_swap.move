@@ -21,7 +21,7 @@ module atomic_swap::atomic_swap {
 
     const ECOIN_NOT_INIT: u64 = 0;
     const EESCROW_NOT_INIT: u64 = 1;
-    const EBALANCE_MISMATCH: u64 = 2;
+    const EINCORRECT_BALANCE: u64 = 2;
 
     /// Initialize escrow
     public entry fun init_escrow<X, Y>(init_user: &signer, seed: vector<u8>) {
@@ -117,7 +117,7 @@ module atomic_swap::atomic_swap {
     #[test_only]
     struct CoinY {}
 
-    #[test(init_user = @0x1, comp_user = @0x1)]
+    #[test(init_user = @0x1, comp_user = @0x2)]
     public fun test_end_to_end(init_user: signer, comp_user: signer)  acquires Escrow, EscrowEvent {
         let init_user_addr = signer::address_of(&init_user);
         let comp_user_addr = signer::address_of(&comp_user);
@@ -145,16 +145,18 @@ module atomic_swap::atomic_swap {
         managed_coin::mint<CoinY>(&comp_user, comp_user_addr, 100);
 
         init_escrow<CoinX, CoinY>(&init_user, b"seed");
-        assert!(coin::balance<CoinX>(init_user_addr) == 100, EBALANCE_MISMATCH);
-        assert!(coin::balance<CoinY>(init_user_addr) == 100, EBALANCE_MISMATCH);
+        // Both users are receiving the full amounts of both coins.. need to fix this by allowing for variable
+        // users in unit tests
+        assert!(coin::balance<CoinX>(init_user_addr) == 100, EINCORRECT_BALANCE);
+        assert!(coin::balance<CoinY>(init_user_addr) == 100, EINCORRECT_BALANCE);
 
-        assert!(coin::balance<CoinY>(comp_user_addr) == 100, EBALANCE_MISMATCH);
-        assert!(coin::balance<CoinX>(comp_user_addr) == 100, EBALANCE_MISMATCH);
+        assert!(coin::balance<CoinX>(comp_user_addr) == 100, EINCORRECT_BALANCE);
+        assert!(coin::balance<CoinY>(comp_user_addr) == 100, EINCORRECT_BALANCE);
 
 
         init_swap<CoinX, CoinY>(&init_user, 20, 70);
-//        assert!(coin::balance<CoinY>(init_user_addr) == 30, EBALANCE_MISMATCH);
-//        assert!(coin::balance<CoinY>(comp_user_addr) == 30, EBALANCE_MISMATCH);
+//        assert!(coin::balance<CoinY>(init_user_addr) == 30, EINCORRECT_BALANCE);
+//        assert!(coin::balance<CoinY>(comp_user_addr) == 30, EINCORRECT_BALANCE);
 
         complete_swap<CoinX, CoinY>(&comp_user, init_user_addr, 70);
 
