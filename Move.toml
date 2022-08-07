@@ -2,10 +2,11 @@
 name = "atomic_swap"
 version = "0.0.0"
 
-[dependencies]
-AptosFramework = { local = "../../aptos-core/aptos-move/framework/aptos-framework" }
+[dependencies.AptosFramework]
+git = 'https://github.com/aptos-labs/aptos-core'
+subdir = 'aptos-move/framework/aptos-framework'
+rev = '908aff867fcc1e1b12f058d474329097ab96f14b'
 
 [addresses]
-atomic_swap = "0x1"
-init_user = "0x1"
-comp_user = "0x2"
+atomic_swap = "0x2"
+comp_user = "0x3"
