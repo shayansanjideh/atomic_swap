@@ -12,7 +12,9 @@ module atomic_swap::atomic_swap {
         coin_x: coin::Coin<X>,
         amt_x: u64,
         coin_y: coin::Coin<Y>,
-        req_y: u64
+        req_y: u64,
+
+        escrow_signer_cap: account::SignerCapability
     }
 
     struct EscrowEvent has key {
@@ -34,7 +36,7 @@ module atomic_swap::atomic_swap {
             coins::register<Y>(init_user);
         };
 
-        let (escrow_signer, _escrow_signer_cap) = account::create_resource_account(init_user, seed);
+        let (escrow_signer, escrow_signer_cap) = account::create_resource_account(init_user, seed);
 
         // Register the escrow to be able to accept both coins
         coins::register<X>(&escrow_signer);
@@ -46,7 +48,8 @@ module atomic_swap::atomic_swap {
                 coin_x: coin::zero<X>(),
                 amt_x: 0,
                 coin_y: coin::zero<Y>(),
-                req_y: 0
+                req_y: 0,
+                escrow_signer_cap
             }
         );
         let escrow_addr = signer::address_of(&escrow_signer);
@@ -98,13 +101,13 @@ module atomic_swap::atomic_swap {
         };
 
         let escrow = borrow_global_mut<Escrow<X, Y>>(escrow_addr);
+        let escrow_signer = account::create_signer_with_capability(&escrow.escrow_signer_cap);
 
-        // TODO: Fix final deposits
-        let coins_x = coin::extract_all<X>(&mut escrow.coin_x);
-        coin::deposit<X>(comp_user_addr, coins_x);
+        let coins_x_amt = coin::balance<X>(escrow_addr);
+        coin::transfer<X>(&escrow_signer, comp_user_addr, coins_x_amt);
 
-        let coins_y = coin::extract_all<Y>(&mut escrow.coin_y);
-        coin::deposit<Y>(init_user_addr, coins_y);
+        let coins_y_amt = coin::balance<Y>(escrow_addr);
+        coin::transfer<Y>(&escrow_signer, init_user_addr, coins_y_amt);
     }
 
     // =========== Tests =========== //
@@ -159,9 +162,8 @@ module atomic_swap::atomic_swap {
         assert!(coin::balance<CoinX>(init_user_addr) == 80, EINCORRECT_BALANCE);
         assert!(coin::balance<CoinY>(comp_user_addr) == 30, EINCORRECT_BALANCE);
 
-        // TODO: Get last two assertions to pass
-//        assert!(coin::balance<CoinX>(comp_user_addr) == 20, EINCORRECT_BALANCE);
-//        assert!(coin::balance<CoinY>(init_user_addr) == 70, EINCORRECT_BALANCE);
+        assert!(coin::balance<CoinX>(comp_user_addr) == 20, EINCORRECT_BALANCE);
+        assert!(coin::balance<CoinY>(init_user_addr) == 70, EINCORRECT_BALANCE);
     }
 }
 
